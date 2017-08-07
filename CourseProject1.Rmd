@@ -1,0 +1,114 @@
+---
+title: "CourseProject1"
+output: 
+  html_document: 
+    keep_md: yes
+keep_md: true
+---
+
+## This is the solution for wk.2 peer-graded assessment
+## Course: Reproducible Research
+
+### By Kees Eveleens Maarse
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Reading in and processing the data
+
+I made sure the steps are read in as numeric, and I converted the date to a
+'real' date, so that I can carry out all tasks as required.  
+
+```{r}
+
+library(tidyverse)
+library(ggplot2)
+
+mydata <- read.csv("activity.csv",colClasses = c("steps"="numeric"))
+mydata$date <- paste(as.character(mydata$date),' 000000',sep='')
+mydata$add_date <- as.POSIXct(mydata$date, format='%Y-%m-%d %H%M%S')
+```
+
+2. Produce a histogram of the total number of steps each day
+
+```{r}
+mydata %>%
+  group_by(add_date) %>%
+  summarise(total_steps = sum(steps)) %>%
+  ggplot(aes(x=add_date, y=total_steps)) + geom_bar(stat = "identity") 
+```
+
+3. Produce histograms of the mean and the median of the number of steps each day
+
+```{r}
+mydata %>%
+  group_by(add_date) %>%
+  summarise(mean_steps = mean(steps)) %>%
+  ggplot(aes(x=add_date, y=mean_steps)) + geom_bar(stat = "identity")
+mydata %>%
+  group_by(add_date) %>%
+  summarise(median_steps = median(steps)) %>%
+  ggplot(aes(x=add_date, y=median_steps)) + geom_bar(stat = "identity")
+```
+
+4. Produce a time series plot of the average number of steps, per time period
+
+```{r}
+mydata_interval <- group_by(mydata, interval)
+mydata_int_mean <- summarise(mydata_interval,average=mean(steps, na.rm=TRUE))
+myts <- ts(mydata_int_mean$average, frequency=24*12)
+plot(myts)
+```
+
+5. The time interval that has on average the maximum number of steps 
+
+```{r}
+max(myts)
+```
+
+6a. Calculate the number of occurences with missing data
+
+```{r}
+nrow(mydata) - nrow(na.omit(mydata))
+```
+
+6b. Fill in the missing data
+I decide to use the median value of the interval; that seemed an appropriate way
+to fill in the missing data.
+
+```{r}
+library(data.table)
+DT <- data.table(mydata)
+setkey(DT, interval)
+DT[,steps := ifelse(is.na(steps), median(steps, na.rm=TRUE), steps), by=interval]
+```
+
+7. Histograms of the mean and the median of the number of steps each day, now with missing data filled in
+
+```{r}
+DT %>%
+  group_by(add_date) %>%
+  summarise(total_steps = sum(steps)) %>%
+  ggplot(aes(x=add_date, y=total_steps)) + geom_bar(stat = "identity")
+
+DT %>%
+  group_by(add_date) %>%
+  summarise(mean_steps = mean(steps)) %>%
+  ggplot(aes(x=add_date, y=mean_steps)) + geom_bar(stat = "identity")
+```
+
+8. Panel plot comparing average number of step throughout the day, weekdays vs. weekends. 
+So: first add a column showing whether it's a weekend or a weekday, make it a factor value. Then, produce a faceted diagram.
+
+```{r}
+DT$weekend <- ifelse(weekdays(DT$add_date) %in% c("Saturday", "Sunday"), "weekend", "weekday")
+DT$weekend <- as.factor(DT$weekend)
+ggplot(DT, aes(x = interval, y = steps, group = weekend)) +
+     geom_line() +
+     facet_grid(weekend ~.)
+```
+
+### End
